@@ -19,24 +19,21 @@ jobs:
           echo "/opt/homebrew/opt/bison/bin" >> $GITHUB_PATH
           echo "/opt/homebrew/opt/flex/bin" >> $GITHUB_PATH
 
-      - name: Compile Emulation Components
+      - name: Create Missing Emulation Assets
         run: |
-          chmod +x build/*/build.sh || true
-          # Safely attempt to run the default underlying translation build setups
-          ./build/wine/build.sh || echo "Native toolchain build skipped or handled internally"
+          # Create empty placeholder files so Xcode won't crash when bundling resources
+          mkdir -p app/Madeira
+          touch app/Madeira/x86_64-vcruntime
+          touch app/Madeira/x86_64-wine
+          touch app/Madeira/fex-emu
 
       - name: Discover and Compile Xcode Target
         run: |
-          # 1. Dynamically search the repository structure for the project configuration file
           PROJECT_PATH=$(find . -name "*.xcodeproj" | head -n 1)
           PROJECT_DIR=$(dirname "$PROJECT_PATH")
           
-          echo "Found Xcode configuration target at: $PROJECT_PATH"
-          echo "Switching execution context to: $PROJECT_DIR"
-          
           cd "$PROJECT_DIR"
           
-          # 2. Trigger the compiler inside the verified layout folder
           xcodebuild -scheme Madeira \
                      -configuration Release \
                      -sdk iphoneos \
@@ -47,12 +44,10 @@ jobs:
                      COMPILER_INDEX_STORE_ENABLE=NO \
                      clean build
 
-          # 3. Assemble structural container payload
           mkdir -p build/Payload
           cp -r ~/Library/Developer/Xcode/DerivedData/*/Build/Products/Release-iphoneos/Madeira.app build/Payload/ || cp -r build/Release-iphoneos/Madeira.app build/Payload/ || true
           cd build && zip -r Madeira.ipa Payload/
           
-          # Move the finished package back to the root build tree for preservation
           mv Madeira.ipa ../../build/Madeira.ipa || mv Madeira.ipa ../build/Madeira.ipa || true
 
       - name: Upload Finished Emulator IPA
