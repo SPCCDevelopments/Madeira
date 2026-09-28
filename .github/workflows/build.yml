@@ -1,0 +1,41 @@
+name: Build iOS IPA
+on: 
+  push:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: macos-15
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install Build Dependencies
+        run: |
+          brew install cmake ninja llvm
+
+      - name: Compile Components and Wine
+        run: |
+          chmod +x build/*/build.sh
+          ./build/wine/build.sh
+
+      - name: Build and Package IPA
+        run: |
+          xcodebuild -scheme Madeira \
+                     -configuration Release \
+                     -sdk iphoneos \
+                     CODE_SIGNING_ALLOWED=NO \
+                     CODE_SIGNING_REQUIRED=NO \
+                     clean build
+          
+          mkdir -p build/Payload
+          cp -r build/Release-iphoneos/Madeira.app build/Payload/
+          cd build && zip -r Madeira.ipa Payload/
+
+      - name: Upload Finished IPA
+        uses: actions/upload-artifact@v4
+        with:
+          name: Madeira-Unsigned-IPA
+          path: build/Madeira.ipa
