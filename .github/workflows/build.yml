@@ -7,10 +7,10 @@ jobs:
   build:
     runs-on: macos-15
     steps:
-      - name: Checkout Code with All Submodules
-        uses: actions/checkout@v4
+      # 1. Using v4.2.2 completely bypasses the Node 20 deprecation warning
+      - name: Checkout Code
+        uses: actions/checkout@v4.2.2
         with:
-          repository: 'willfaust/madeira'
           submodules: 'recursive'
           fetch-depth: 0
 
@@ -20,19 +20,18 @@ jobs:
           echo "/opt/homebrew/opt/bison/bin" >> $GITHUB_PATH
           echo "/opt/homebrew/opt/flex/bin" >> $GITHUB_PATH
 
-      - name: Pre-configure Submodules
+      - name: Compile Translation Components
         run: |
-          git submodule sync --recursive
-          git submodule update --init --recursive --force
-
-      - name: Compile Components and Wine
-        run: |
-          chmod +x build/*/build.sh
-          # Run the main Wine compilation script
-          ./build/wine/build.sh
+          # Make sure scripts have execution permissions
+          chmod +x macos/build.sh || true
+          
+          # Navigate into the actual macos project directory where the build script lives
+          cd macos
+          ./build.sh
 
       - name: Build and Package IPA
         run: |
+          cd macos
           xcodebuild -scheme Madeira \
                      -configuration Release \
                      -sdk iphoneos \
@@ -48,4 +47,4 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: Madeira-Unsigned-IPA
-          path: build/Madeira.ipa
+          path: macos/build/Madeira.ipa
