@@ -21,31 +21,26 @@ jobs:
 
       - name: Compile Emulation Components
         run: |
-          # Grant execution access to build chain scripts
           chmod +x build/fex/build.sh build/dxmt/build.sh build/wine/build.sh || true
-          
-          echo "Building FEX-Emu Layer..."
           ./build/fex/build.sh || echo "FEX build bypassed"
-          
-          echo "Building DXMT Graphics Layer..."
           ./build/dxmt/build.sh || echo "DXMT build bypassed"
-          
-          echo "Building Wine Translation Framework..."
           ./build/wine/build.sh || echo "Wine build bypassed"
 
       - name: Build and Package App via Xcode
         run: |
-          # Step into the correct project folder 'app' where Madeira.xcodeproj lives
           cd app
           
+          # Force the compilation block past typical Code 65 restriction paths
           xcodebuild -scheme Madeira \
                      -configuration Release \
                      -sdk iphoneos \
                      CODE_SIGNING_ALLOWED=NO \
                      CODE_SIGNING_REQUIRED=NO \
+                     CODE_SIGN_IDENTITY="" \
+                     CODE_SIGNING_METHOD="manual" \
+                     COMPILER_INDEX_STORE_ENABLE=NO \
                      clean build
           
-          # Construct the Payload folder structure for the final IPA container
           mkdir -p build/Payload
           cp -r ~/Library/Developer/Xcode/DerivedData/*/Build/Products/Release-iphoneos/Madeira.app build/Payload/ || cp -r build/Release-iphoneos/Madeira.app build/Payload/ || true
           cd build && zip -r Madeira.ipa Payload/
