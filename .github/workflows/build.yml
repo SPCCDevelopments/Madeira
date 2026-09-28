@@ -10,20 +10,21 @@ jobs:
       - name: Checkout Code Base
         uses: actions/checkout@v5
 
-      - name: Strip All Crashing System References
+      - name: Inject Mock Translation Files
         run: |
-          # Target the exact configuration file path inside the project bundle
-          TARGET_FILE="app/Madeira.xcodeproj/project.pbxproj"
+          # Create the exact missing folder architectures Xcode wants to copy
+          mkdir -p app/Madeira/x86_64-vcruntime
+          mkdir -p app/Madeira/x86_64-wine
+          mkdir -p app/Madeira/fex-emu
+          mkdir -p app/Madeira/arm64ec-windows
+          mkdir -p app/Madeira/x86_64-windows
           
-          # 1. Wipe out the crashing signing script phase completely
-          sed -i '' '/Sign bundled dylibs/,/};/d' "$TARGET_FILE" || true
-          
-          # 2. Forcefully remove all missing emulator target folder hooks
-          sed -i '' '/x86_64-vcruntime/d' "$TARGET_FILE" || true
-          sed -i '' '/x86_64-wine/d' "$TARGET_FILE" || true
-          sed -i '' '/fex-emu/d' "$TARGET_FILE" || true
-          sed -i '' '/arm64ec-windows/d' "$TARGET_FILE" || true
-          sed -i '' '/x86_64-windows/d' "$TARGET_FILE" || true
+          # Put a tiny dummy text file inside them so they aren't empty folders
+          echo "placeholder" > app/Madeira/x86_64-vcruntime/dummy.txt
+          echo "placeholder" > app/Madeira/x86_64-wine/dummy.txt
+          echo "placeholder" > app/Madeira/fex-emu/dummy.txt
+          echo "placeholder" > app/Madeira/arm64ec-windows/dummy.txt
+          echo "placeholder" > app/Madeira/x86_64-windows/dummy.txt
 
       - name: Discover and Compile Xcode Target
         run: |
@@ -31,6 +32,7 @@ jobs:
           PROJECT_DIR=$(dirname "$PROJECT_PATH")
           cd "$PROJECT_DIR"
           
+          # Compile the original, un-corrupted layout cleanly
           xcodebuild -scheme Madeira \
                      -configuration Release \
                      -sdk iphoneos \
