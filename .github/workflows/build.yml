@@ -10,18 +10,20 @@ jobs:
       - name: Checkout Code Base
         uses: actions/checkout@v5
 
-      - name: Strip Sign Scripts and Missing Resource Hooks
+      - name: Strip All Crashing System References
         run: |
-          cd app
-          # 1. Completely delete the crashing 'Sign bundled dylibs' script build phase from the project configuration file
-          sed -i '' '/Sign bundled dylibs/,/};/d' project.pbxproj || true
+          # Target the exact configuration file path inside the project bundle
+          TARGET_FILE="app/Madeira.xcodeproj/project.pbxproj"
           
-          # 2. Prevent Xcode from looking for the missing uncompiled folders
-          sed -i '' '/x86_64-vcruntime/d' project.pbxproj || true
-          sed -i '' '/x86_64-wine/d' project.pbxproj || true
-          sed -i '' '/fex-emu/d' project.pbxproj || true
-          sed -i '' '/arm64ec-windows/d' project.pbxproj || true
-          sed -i '' '/x86_64-windows/d' project.pbxproj || true
+          # 1. Wipe out the crashing signing script phase completely
+          sed -i '' '/Sign bundled dylibs/,/};/d' "$TARGET_FILE" || true
+          
+          # 2. Forcefully remove all missing emulator target folder hooks
+          sed -i '' '/x86_64-vcruntime/d' "$TARGET_FILE" || true
+          sed -i '' '/x86_64-wine/d' "$TARGET_FILE" || true
+          sed -i '' '/fex-emu/d' "$TARGET_FILE" || true
+          sed -i '' '/arm64ec-windows/d' "$TARGET_FILE" || true
+          sed -i '' '/x86_64-windows/d' "$TARGET_FILE" || true
 
       - name: Discover and Compile Xcode Target
         run: |
@@ -29,7 +31,6 @@ jobs:
           PROJECT_DIR=$(dirname "$PROJECT_PATH")
           cd "$PROJECT_DIR"
           
-          # Run the compiler completely ignoring code signing restrictions
           xcodebuild -scheme Madeira \
                      -configuration Release \
                      -sdk iphoneos \
@@ -40,7 +41,6 @@ jobs:
                      COMPILER_INDEX_STORE_ENABLE=NO \
                      clean build
 
-          # Package the output into a standard zip Payload container format
           mkdir -p build/Payload
           cp -r ~/Library/Developer/Xcode/DerivedData/*/Build/Products/Release-iphoneos/Madeira.app build/Payload/ || cp -r build/Release-iphoneos/Madeira.app build/Payload/ || true
           cd build && zip -r Madeira.ipa Payload/
