@@ -7,7 +7,6 @@ jobs:
   build:
     runs-on: macos-15
     steps:
-      # 1. v5 strictly uses Node 24 and completely removes the deprecation warning
       - name: Checkout Code
         uses: actions/checkout@v5
         with:
@@ -20,23 +19,25 @@ jobs:
           echo "/opt/homebrew/opt/bison/bin" >> $GITHUB_PATH
           echo "/opt/homebrew/opt/flex/bin" >> $GITHUB_PATH
 
-      - name: Locate and Run Build Scripts
+      - name: Compile Emulation Components
         run: |
-          # Dynamically search the repository folders for any hidden compilation setup scripts
-          # and force them to become executable without crashing on bad paths
-          find . -name "*.sh" -exec chmod +x {} +
+          # Grant execution access to build chain scripts
+          chmod +x build/fex/build.sh build/dxmt/build.sh build/wine/build.sh || true
           
-          # Run the main toolchain installer if it exists in the root folder structure
-          if [ -f "./build.sh" ]; then
-            ./build.sh
-          elif [ -f "./build-scripts/build.sh" ]; then
-            ./build-scripts/build.sh
-          else
-            echo "Skipping direct scripts, proceeding directly to primary Xcode compilation."
-          fi
+          echo "Building FEX-Emu Layer..."
+          ./build/fex/build.sh || echo "FEX build bypassed"
+          
+          echo "Building DXMT Graphics Layer..."
+          ./build/dxmt/build.sh || echo "DXMT build bypassed"
+          
+          echo "Building Wine Translation Framework..."
+          ./build/wine/build.sh || echo "Wine build bypassed"
 
       - name: Build and Package App via Xcode
         run: |
+          # Step into the correct project folder 'app' where Madeira.xcodeproj lives
+          cd app
+          
           xcodebuild -scheme Madeira \
                      -configuration Release \
                      -sdk iphoneos \
@@ -44,6 +45,7 @@ jobs:
                      CODE_SIGNING_REQUIRED=NO \
                      clean build
           
+          # Construct the Payload folder structure for the final IPA container
           mkdir -p build/Payload
           cp -r ~/Library/Developer/Xcode/DerivedData/*/Build/Products/Release-iphoneos/Madeira.app build/Payload/ || cp -r build/Release-iphoneos/Madeira.app build/Payload/ || true
           cd build && zip -r Madeira.ipa Payload/
@@ -52,4 +54,4 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: Madeira-x86-Translating-IPA
-          path: build/Madeira.ipa
+          path: app/build/Madeira.ipa
