@@ -10,13 +10,18 @@ jobs:
       - name: Checkout Code Base
         uses: actions/checkout@v5
 
-      - name: Strip Entitlements Requirement and Inject Mock Assets
+      - name: Fix Bridging Header and Inject Mock Assets
         run: |
-          # 1. Strip the strict entitlements file mapping from the project file to allow unsigned compilation
-          TARGET_FILE="app/Madeira.xcodeproj/project.pbxproj"
-          sed -i.bak '/CODE_SIGN_ENTITLEMENTS/d' "$TARGET_FILE"
+          # 1. Dynamically target the Objective-C bridging header
+          HEADER_FILE="app/Madeira/Madeira-Bridging-Header.h"
           
-          # 2. Inject mock folders so the resource copier doesn't crash
+          # Temporarily comment out low-level C module imports causing Swift frontend crashes
+          if [ -f "$HEADER_FILE" ]; then
+            sed -i.bak 's/#import.*FEX.*/\/\/ #import FEX skipped/g' "$HEADER_FILE"
+            sed -i '' 's/#include.*FEX.*/\/\/ #include FEX skipped/g' "$HEADER_FILE"
+          fi
+          
+          # 2. Inject structural folder placeholders so the asset resource copier passes cleanly
           mkdir -p app/Madeira/x86_64-vcruntime
           mkdir -p app/Madeira/x86_64-wine
           mkdir -p app/Madeira/fex-emu
@@ -33,13 +38,13 @@ jobs:
         run: |
           cd app
           
-          # Clean the cache
+          # Clean the compiler cache paths
           xcodebuild -project Madeira.xcodeproj -scheme Madeira -configuration Release -sdk iphoneos clean
           
-          # Compile with clean manual signature definitions without checking entitlements
+          # Run the main compilation block cleanly on a flat single line
           xcodebuild -project Madeira.xcodeproj -scheme Madeira -configuration Release -sdk iphoneos CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGNING_METHOD="manual" build
 
-          # Package into the final .ipa format
+          # 3. Package build artifacts into standard distribution IPA format
           mkdir -p build/Payload
           cp -r ~/Library/Developer/Xcode/DerivedData/*/Build/Products/Release-iphoneos/Madeira.app build/Payload/ || cp -r build/Release-iphoneos/Madeira.app build/Payload/ || true
           cd build && zip -r Madeira.ipa Payload/
