@@ -12,14 +12,14 @@ jobs:
 
       - name: Inject Mock Translation Files
         run: |
-          # Create the exact missing folder architectures Xcode wants to copy
+          # Create the folders Xcode expects to bundle as resources
           mkdir -p app/Madeira/x86_64-vcruntime
           mkdir -p app/Madeira/x86_64-wine
           mkdir -p app/Madeira/fex-emu
           mkdir -p app/Madeira/arm64ec-windows
           mkdir -p app/Madeira/x86_64-windows
           
-          # Put a tiny dummy text file inside them so they aren't empty folders
+          # Populate folders with a dummy anchor file
           echo "placeholder" > app/Madeira/x86_64-vcruntime/dummy.txt
           echo "placeholder" > app/Madeira/x86_64-wine/dummy.txt
           echo "placeholder" > app/Madeira/fex-emu/dummy.txt
@@ -32,7 +32,7 @@ jobs:
           PROJECT_DIR=$(dirname "$PROJECT_PATH")
           cd "$PROJECT_DIR"
           
-          # Compile the original, un-corrupted layout cleanly
+          # -disable-custom-script-execution safely bypasses the 'Sign bundled dylibs' phase
           xcodebuild -scheme Madeira \
                      -configuration Release \
                      -sdk iphoneos \
@@ -41,6 +41,7 @@ jobs:
                      CODE_SIGN_IDENTITY="" \
                      CODE_SIGNING_METHOD="manual" \
                      COMPILER_INDEX_STORE_ENABLE=NO \
+                     -disable-custom-script-execution \
                      clean build
 
           mkdir -p build/Payload
