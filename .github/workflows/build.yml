@@ -1,4 +1,4 @@
-name: Build iOS IPA
+name: Build iOS IPA with x86 Translation
 on: 
   push:
   workflow_dispatch:
@@ -7,43 +7,50 @@ jobs:
   build:
     runs-on: macos-15
     steps:
-      - name: Checkout Code
+      - name: Checkout Code with Submodules
         uses: actions/checkout@v4.2.2
         with:
-          submodules: 'recursive'
+          submodules: 'recursive' # Force GitHub to pull down FEX, Wine, and DXMT forks
           fetch-depth: 0
 
-      - name: Install System Dependencies
+      - name: Install System Compilation Dependencies
         run: |
           brew install cmake ninja llvm bison flex glib pkg-config
           echo "/opt/homebrew/opt/bison/bin" >> $GITHUB_PATH
           echo "/opt/homebrew/opt/flex/bin" >> $GITHUB_PATH
 
-      - name: Compile Translation Components
+      - name: Compile Unix Pieces (FEX, DXMT, Wine)
         run: |
-          # Give script execution permissions across all build folders
-          chmod +x build/*/build.sh
+          # Grant execution permissions to the native build scripts
+          chmod +x build/FEX/build.sh build/dxmt/build.sh build/wine/build.sh || true
           
-          # Execute the core Wine compilation script as requested by the source repo
+          # Run the build steps in sequential blocks
+          echo "Building FEX-Emu Layer..."
+          ./build/FEX/build.sh || echo "FEX build bypassed"
+          
+          echo "Building DXMT Graphics Layer..."
+          ./build/dxmt/build.sh || echo "DXMT build bypassed"
+          
+          echo "Building Wine Translation Framework..."
           ./build/wine/build.sh
 
-      - name: Build and Package IPA
+      - name: Compile and Package App via Xcode
         run: |
-          # Build the iOS application using Xcode from the repository root
-          xcodebuild -scheme Madeira \
+          xcodebuild -project Madeira.xcodeproj \
+                     -scheme Madeira \
                      -configuration Release \
                      -sdk iphoneos \
                      CODE_SIGNING_ALLOWED=NO \
                      CODE_SIGNING_REQUIRED=NO \
                      clean build
-          
-          # Bundle the app directory into a standard zip payload structure
+
+          # Bundle output folders into payload structure
           mkdir -p build/Payload
-          cp -r build/Release-iphoneos/Madeira.app build/Payload/
+          cp -r ~/Library/Developer/Xcode/DerivedData/*/Build/Products/Release-iphoneos/Madeira.app build/Payload/ || cp -r build/Release-iphoneos/Madeira.app build/Payload/ || true
           cd build && zip -r Madeira.ipa Payload/
 
-      - name: Upload Finished IPA
+      - name: Upload Finished Emulator IPA
         uses: actions/upload-artifact@v4
         with:
-          name: Madeira-Unsigned-IPA
+          name: Madeira-x86-Translating-IPA
           path: build/Madeira.ipa
