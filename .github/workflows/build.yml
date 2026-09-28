@@ -19,19 +19,17 @@ jobs:
           echo "/opt/homebrew/opt/bison/bin" >> $GITHUB_PATH
           echo "/opt/homebrew/opt/flex/bin" >> $GITHUB_PATH
 
-      - name: Compile Emulation Components
+      - name: Initialize Submodule Working Trees
         run: |
-          chmod +x build/fex/build.sh build/dxmt/build.sh build/wine/build.sh || true
-          ./build/fex/build.sh || echo "FEX build bypassed"
-          ./build/dxmt/build.sh || echo "DXMT build bypassed"
-          ./build/wine/build.sh || echo "Wine build bypassed"
+          git submodule sync --recursive
+          git submodule update --init --recursive --force
 
-      - name: Build and Package App via Xcode
+      - name: Build and Package App via Xcode Workspace
         run: |
           cd app
           
-          # Force the compilation block past typical Code 65 restriction paths
-          xcodebuild -scheme Madeira \
+          # Force Xcode to accept independent compilation targets and bypass signature blockades
+          xcodebuild -workspace Madeira.xcworkspace -scheme Madeira \
                      -configuration Release \
                      -sdk iphoneos \
                      CODE_SIGNING_ALLOWED=NO \
@@ -39,6 +37,7 @@ jobs:
                      CODE_SIGN_IDENTITY="" \
                      CODE_SIGNING_METHOD="manual" \
                      COMPILER_INDEX_STORE_ENABLE=NO \
+                     ONLY_ACTIVE_ARCH=NO \
                      clean build
           
           mkdir -p build/Payload
