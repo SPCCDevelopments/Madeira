@@ -12,38 +12,29 @@ jobs:
 
       - name: Inject Mock Translation Files
         run: |
-          # Create the folders Xcode expects to bundle as resources
           mkdir -p app/Madeira/x86_64-vcruntime
           mkdir -p app/Madeira/x86_64-wine
           mkdir -p app/Madeira/fex-emu
           mkdir -p app/Madeira/arm64ec-windows
           mkdir -p app/Madeira/x86_64-windows
           
-          # Populate folders with a dummy anchor file
           echo "placeholder" > app/Madeira/x86_64-vcruntime/dummy.txt
           echo "placeholder" > app/Madeira/x86_64-wine/dummy.txt
           echo "placeholder" > app/Madeira/fex-emu/dummy.txt
           echo "placeholder" > app/Madeira/arm64ec-windows/dummy.txt
           echo "placeholder" > app/Madeira/x86_64-windows/dummy.txt
 
-      - name: Discover and Compile Xcode Target
+      - name: Compile Xcode Target
         run: |
-          PROJECT_PATH=$(find . -name "*.xcodeproj" | head -n 1)
-          PROJECT_DIR=$(dirname "$PROJECT_PATH")
-          cd "$PROJECT_DIR"
+          cd app
           
-          # -disable-custom-script-execution safely bypasses the 'Sign bundled dylibs' phase
-          xcodebuild -scheme Madeira \
-                     -configuration Release \
-                     -sdk iphoneos \
-                     CODE_SIGNING_ALLOWED=NO \
-                     CODE_SIGNING_REQUIRED=NO \
-                     CODE_SIGN_IDENTITY="" \
-                     CODE_SIGNING_METHOD="manual" \
-                     COMPILER_INDEX_STORE_ENABLE=NO \
-                     -disable-custom-script-execution \
-                     clean build
+          # 1. Step one: Clean the project cache
+          xcodebuild -project Madeira.xcodeproj -scheme Madeira -configuration Release -sdk iphoneos clean
+          
+          # 2. Step two: Run the actual compilation target cleanly
+          xcodebuild -project Madeira.xcodeproj -scheme Madeira -configuration Release -sdk iphoneos CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO build
 
+          # 3. Assemble the package structure
           mkdir -p build/Payload
           cp -r ~/Library/Developer/Xcode/DerivedData/*/Build/Products/Release-iphoneos/Madeira.app build/Payload/ || cp -r build/Release-iphoneos/Madeira.app build/Payload/ || true
           cd build && zip -r Madeira.ipa Payload/
