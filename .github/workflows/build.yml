@@ -7,7 +7,6 @@ jobs:
   build:
     runs-on: macos-15
     steps:
-      # 1. Using v4.2.2 completely bypasses the Node 20 deprecation warning
       - name: Checkout Code
         uses: actions/checkout@v4.2.2
         with:
@@ -22,16 +21,15 @@ jobs:
 
       - name: Compile Translation Components
         run: |
-          # Make sure scripts have execution permissions
-          chmod +x macos/build.sh || true
+          # Give script execution permissions across all build folders
+          chmod +x build/*/build.sh
           
-          # Navigate into the actual macos project directory where the build script lives
-          cd macos
-          ./build.sh
+          # Execute the core Wine compilation script as requested by the source repo
+          ./build/wine/build.sh
 
       - name: Build and Package IPA
         run: |
-          cd macos
+          # Build the iOS application using Xcode from the repository root
           xcodebuild -scheme Madeira \
                      -configuration Release \
                      -sdk iphoneos \
@@ -39,6 +37,7 @@ jobs:
                      CODE_SIGNING_REQUIRED=NO \
                      clean build
           
+          # Bundle the app directory into a standard zip payload structure
           mkdir -p build/Payload
           cp -r build/Release-iphoneos/Madeira.app build/Payload/
           cd build && zip -r Madeira.ipa Payload/
@@ -47,4 +46,4 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: Madeira-Unsigned-IPA
-          path: macos/build/Madeira.ipa
+          path: build/Madeira.ipa
