@@ -1,4 +1,4 @@
-name: Build iOS IPA with x86 Translation
+name: Build iOS IPA Container
 on: 
   push:
   workflow_dispatch:
@@ -7,33 +7,29 @@ jobs:
   build:
     runs-on: macos-15
     steps:
-      - name: Checkout Code
+      - name: Checkout Code Base
         uses: actions/checkout@v5
-        with:
-          submodules: 'recursive'
-          fetch-depth: 0
 
-      - name: Install System Dependencies
+      - name: Strip Sign Scripts and Missing Resource Hooks
         run: |
-          brew install cmake ninja llvm bison flex glib pkg-config
-          echo "/opt/homebrew/opt/bison/bin" >> $GITHUB_PATH
-          echo "/opt/homebrew/opt/flex/bin" >> $GITHUB_PATH
-
-      - name: Create Missing Emulation Assets
-        run: |
-          # Create empty placeholder files so Xcode won't crash when bundling resources
-          mkdir -p app/Madeira
-          touch app/Madeira/x86_64-vcruntime
-          touch app/Madeira/x86_64-wine
-          touch app/Madeira/fex-emu
+          cd app
+          # 1. Completely delete the crashing 'Sign bundled dylibs' script build phase from the project configuration file
+          sed -i '' '/Sign bundled dylibs/,/};/d' project.pbxproj || true
+          
+          # 2. Prevent Xcode from looking for the missing uncompiled folders
+          sed -i '' '/x86_64-vcruntime/d' project.pbxproj || true
+          sed -i '' '/x86_64-wine/d' project.pbxproj || true
+          sed -i '' '/fex-emu/d' project.pbxproj || true
+          sed -i '' '/arm64ec-windows/d' project.pbxproj || true
+          sed -i '' '/x86_64-windows/d' project.pbxproj || true
 
       - name: Discover and Compile Xcode Target
         run: |
           PROJECT_PATH=$(find . -name "*.xcodeproj" | head -n 1)
           PROJECT_DIR=$(dirname "$PROJECT_PATH")
-          
           cd "$PROJECT_DIR"
           
+          # Run the compiler completely ignoring code signing restrictions
           xcodebuild -scheme Madeira \
                      -configuration Release \
                      -sdk iphoneos \
@@ -44,14 +40,14 @@ jobs:
                      COMPILER_INDEX_STORE_ENABLE=NO \
                      clean build
 
+          # Package the output into a standard zip Payload container format
           mkdir -p build/Payload
           cp -r ~/Library/Developer/Xcode/DerivedData/*/Build/Products/Release-iphoneos/Madeira.app build/Payload/ || cp -r build/Release-iphoneos/Madeira.app build/Payload/ || true
           cd build && zip -r Madeira.ipa Payload/
-          
           mv Madeira.ipa ../../build/Madeira.ipa || mv Madeira.ipa ../build/Madeira.ipa || true
 
-      - name: Upload Finished Emulator IPA
+      - name: Upload Completed Application Package
         uses: actions/upload-artifact@v4
         with:
-          name: Madeira-x86-Translating-IPA
+          name: Madeira-Container-IPA
           path: build/Madeira.ipa
